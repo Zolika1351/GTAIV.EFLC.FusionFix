@@ -1075,7 +1075,6 @@ void Init()
         });
 
         // make timecyc changes visible in menu
-		// this is a hack for 1080 because the code differs too much and im lazy
         pattern = hook::pattern("E8 ? ? ? ? 84 C0 5F 0F 85 85 00 00 00");
 		injector::MakeJMP(pattern.get_first(8), pattern.get_first(23));
         pattern = hook::pattern("E8 ? ? ? ? 84 C0 74 1F A1 ? ? ? ? 69 C0");
@@ -1292,6 +1291,18 @@ void Init()
             }; injector::MakeInline<SetVertexShaderConstantFHook>(pattern.get_first(0), pattern.get_first(6));
         }
     }
+
+	// Make LOD lights appear at the appropriate time like on the console version (consoles: 7 PM, pc: 10 PM)
+	{
+		auto pattern = hook::pattern("8D 51 13");
+		if (!pattern.empty()) injector::WriteMemory<uint8_t>(pattern.get_first(2), 0x10, true);
+		pattern = hook::pattern("83 C1 14 3B C1");
+		if (!pattern.empty()) injector::WriteMemory<uint8_t>(pattern.get_first(2), 0x10, true);
+		if (!pattern.empty()) injector::WriteMemory<uint8_t>(pattern.get_first(8), 0x07, true);
+		// Removing episode id check that resulted in flickering LOD lights at certain camera angles in TBOGT
+		pattern = hook::pattern("83 3D ? ? ? ? 02 75 68 F3 0F");
+		if (!pattern.empty()) injector::WriteMemory<uint8_t>(pattern.get_first(7), 0xEB, true); // jnz -> jmp
+	}
 }
 
 CEXP void InitializeASI()
