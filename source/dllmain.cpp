@@ -660,6 +660,12 @@ void __cdecl CBaseModelInfo__setFlagsHook(void* pModel, int dwFlags, int a3)
     return injector::cstd<void(void*, int, int)>::call(CBaseModelInfo__setFlags, pModel, dwFlags, a3);
 }
 
+uintptr_t* pCreateFileA;
+HANDLE CreateFileHook(_In_ LPCSTR lpFileName, _In_ DWORD dwDesiredAccess, _In_ DWORD dwShareMode, _In_opt_ LPSECURITY_ATTRIBUTES lpSecurityAttributes, _In_ DWORD dwCreationDisposition, _In_ DWORD dwFlagsAndAttributes, _In_opt_ HANDLE hTemplateFile)
+{
+	return ((HANDLE(__stdcall*)(_In_ LPCSTR, _In_ DWORD, _In_ DWORD, _In_opt_ LPSECURITY_ATTRIBUTES, _In_ DWORD, _In_ DWORD, _In_opt_ HANDLE))*pCreateFileA)(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+}
+
 void Init()
 {
     CIniReader iniReader("");
@@ -693,6 +699,21 @@ void Init()
     uint32_t nPedBudget = iniReader.ReadInteger("BudgetedIV", "PedBudget", 0);
 
     static float& fTimeStep = **hook::get_pattern<float*>("F3 0F 59 44 24 18 83 C4 04", -4);
+
+	// patch DFA for the folder overrides to work
+	{
+		auto pattern = hook::pattern("FF 15 ? ? ? ? 8B F0 83 FE FF 74 24");
+		if (!pattern.empty())
+		{
+			pCreateFileA = *(uintptr_t**)pattern.get_first(2);
+
+			auto pattern = hook::pattern("55 8B EC 6A 00 E8");
+			if (!pattern.empty())
+			{
+				injector::MakeJMP(pattern.get_first(0), CreateFileHook);
+			}
+		}
+	}
 
 	// reverse lights fix
 	{
