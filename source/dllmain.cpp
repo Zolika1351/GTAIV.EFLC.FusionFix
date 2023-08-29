@@ -36,6 +36,7 @@ private:
     static inline auto firstCustomID = 0;
 private:
     static inline int32_t* mPrefs;
+    static inline int32_t* mSomeOtherPrefsArray;
     static inline std::map<uint32_t, CSetting> mFusionPrefs;
 
     std::optional<std::string> GetPrefNameByID(auto prefID) {
@@ -132,6 +133,17 @@ public:
 
         injector::WriteMemory<uint8_t>(pOriginalEnumsNum, aMenuEnums.size(), true);
         injector::WriteMemory<uint8_t>(pOriginalEnumsNum2, aMenuEnums.size(), true);
+
+		// fix overflow leading to video editor breaking
+		mSomeOtherPrefsArray = new int32_t[aMenuPrefs.size()];
+		pattern = hook::pattern("89 14 8D ? ? ? ? 66");
+		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray);
+		pattern = hook::pattern("89 3C AD ? ? ? ? 0F B7");
+		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray);
+		pattern = hook::pattern("89 04 8D ? ? ? ? 8B 74 24");
+		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray);
+		pattern = hook::pattern("8B 04 85 ? ? ? ? 85 C0 7F");
+		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray);
     }
 public:
     int32_t Get(int32_t prefID)
