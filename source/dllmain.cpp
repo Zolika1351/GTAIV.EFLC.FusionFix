@@ -137,13 +137,13 @@ public:
 		// fix overflow leading to video editor breaking
 		mSomeOtherPrefsArray = new int32_t[aMenuPrefs.size()];
 		pattern = hook::pattern("89 14 8D ? ? ? ? 66");
-		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray);
+		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
 		pattern = hook::pattern("89 3C AD ? ? ? ? 0F B7");
-		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray);
+		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
 		pattern = hook::pattern("89 04 8D ? ? ? ? 8B 74 24");
-		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray);
+		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
 		pattern = hook::pattern("8B 04 85 ? ? ? ? 85 C0 7F");
-		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray);
+		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
     }
 public:
     int32_t Get(int32_t prefID)
@@ -1172,15 +1172,11 @@ void Init()
         }; injector::MakeInline<MenuTogglesHook2>(pattern.get_first(0), pattern.get_first(7));
 
         // show game in display menu
-        // this seems to make the game not launch on GFWL for some reason, should be looked into further
-		if (IsXLivelessPresent())
-		{
-			pattern = hook::pattern("75 10 57 E8 ? ? ? ? 83 C4 04 83 F8 03");
-			injector::WriteMemory(pattern.get_first(), 0x0EEB);
+		pattern = hook::pattern("75 10 57 E8 ? ? ? ? 83 C4 04 83 F8 03");
+		injector::WriteMemory(pattern.get_first(), 0x0EEB, true);
 		
-			pattern = hook::pattern("83 F8 03 7F 06 B8 01 00 00 00 C3 33 C0 C3");
-			injector::MakeNOP(pattern.get_first(3), 2);
-		}
+		pattern = hook::pattern("83 F8 03 7F 06 B8 01 00 00 00 C3 33 C0 C3");
+		injector::MakeNOP(pattern.get_first(3), 2);
     }
 
     {
