@@ -1752,54 +1752,111 @@ void Init()
 		injector::MakeInline<SetPixelShaderConstantFHook>(pattern.count(2).get(0).get<void*>(0), pattern.count(2).get(0).get<void*>(6));
 
 		pattern = hook::pattern("8B 80 AC 11 00 00 8B 10 8B 52 5C");
-		struct CreateTextureHook
+		// 1080
+		if (!pattern.empty())
 		{
-			void operator()(injector::reg_pack& regs)
+			struct CreateTextureHook
 			{
-				regs.eax = *(uint32_t*)(regs.eax + 0x11AC);
-
-				UINT& Width = *(UINT*)(regs.edi + 0x14);
-				UINT& Height = *(UINT*)(regs.edi + 0x18);
-				UINT& Levels = *(UINT*)(regs.edi + 0x20);
-				DWORD& Usage = *(DWORD*)(regs.edi + 0x0C);
-				D3DFORMAT& Format = *(D3DFORMAT*)(regs.edi + 0x24);
-				D3DPOOL& Pool = *(D3DPOOL*)(regs.edi + 0x10);
-				IDirect3DTexture9** ppTexture = (IDirect3DTexture9**)(regs.edi + 0x40);
-
-				if (bFixCascadedShadowMapResolution)
+				void operator()(injector::reg_pack& regs)
 				{
-					if (Format == D3DFORMAT(D3DFMT_R16F) && Height >= 256 && Width == Height * 4 && Levels == 1)
-					{
-						oldCascadesWidth = Width;
-						oldCascadesHeight = Height;
+					regs.eax = *(uint32_t*)(regs.eax + 0x11AC);
 
-						Width *= 2;
-						Height *= 2;
+					UINT& Width = *(UINT*)(regs.edi + 0x14);
+					UINT& Height = *(UINT*)(regs.edi + 0x18);
+					UINT& Levels = *(UINT*)(regs.edi + 0x20);
+					DWORD& Usage = *(DWORD*)(regs.edi + 0x0C);
+					D3DFORMAT& Format = *(D3DFORMAT*)(regs.edi + 0x24);
+					D3DPOOL& Pool = *(D3DPOOL*)(regs.edi + 0x10);
+					IDirect3DTexture9** ppTexture = (IDirect3DTexture9**)(regs.edi + 0x40);
+
+					if (bFixCascadedShadowMapResolution)
+					{
+						if (Format == D3DFORMAT(D3DFMT_R16F) && Height >= 256 && Width == Height * 4 && Levels == 1)
+						{
+							oldCascadesWidth = Width;
+							oldCascadesHeight = Height;
+
+							Width *= 2;
+							Height *= 2;
+						}
+					}
+
+					if (bFixRainDrops && Format == D3DFMT_A16B16G16R16F && Width == (gRect.right - gRect.left) / nRainDropsBlur &&
+						Height == (gRect.bottom - gRect.top) / nRainDropsBlur && ppTexture != nullptr) {
+						ppHDRTexQuarter = ppTexture;
 					}
 				}
+			};
+			injector::MakeInline<CreateTextureHook>(pattern.get_first(0), pattern.get_first(6));
 
-				if (bFixRainDrops && Format == D3DFMT_A16B16G16R16F && Width == (gRect.right - gRect.left) / nRainDropsBlur &&
-					Height == (gRect.bottom - gRect.top) / nRainDropsBlur && ppTexture != nullptr) {
-					ppHDRTexQuarter = ppTexture;
-				}
-			}
-		}; 
-		injector::MakeInline<CreateTextureHook>(pattern.get_first(0), pattern.get_first(6));
-
-		static auto loc_429427 = injector::GetBranchDestination(pattern.get_first(0x24)).as_int();
-		struct CreateTextureHook2
-		{
-			void operator()(injector::reg_pack& regs)
+			static auto loc_429427 = injector::GetBranchDestination(pattern.get_first(0x24)).as_int();
+			struct CreateTextureHook2
 			{
-				if (ppHDRTexQuarter) {
-					pHDRTexQuarter = *ppHDRTexQuarter;
-					ppHDRTexQuarter = nullptr;
-				}
+				void operator()(injector::reg_pack& regs)
+				{
+					if (ppHDRTexQuarter) {
+						pHDRTexQuarter = *ppHDRTexQuarter;
+						ppHDRTexQuarter = nullptr;
+					}
 
-				*(uintptr_t*)(regs.esp - 4) = loc_429427;
-			}
-		}; 
-		injector::MakeInline<CreateTextureHook2>(pattern.get_first(0x24));
+					*(uintptr_t*)(regs.esp - 4) = loc_429427;
+				}
+			};
+			injector::MakeInline<CreateTextureHook2>(pattern.get_first(0x24));
+		}
+		// 1070
+		else
+		{
+			pattern = hook::pattern("8B 80 AC 11 00 00 8B 08 6A 00 8D 9F 8C 00 00 00 53 52 8B 57 58 52 8B 57 0C 52 8B 57 20 52 8B 57 10 52 8B 57");
+			struct CreateTextureHook
+			{
+				void operator()(injector::reg_pack& regs)
+				{
+					regs.eax = *(uint32_t*)(regs.eax + 0x11AC);
+
+					UINT& Width = *(UINT*)(regs.edi + 0x14);
+					UINT& Height = *(UINT*)(regs.edi + 0x10);
+					UINT& Levels = *(UINT*)(regs.edi + 0x20);
+					DWORD& Usage = *(DWORD*)(regs.edi + 0x0C);
+					D3DFORMAT& Format = *(D3DFORMAT*)(regs.edi + 0x58);
+					D3DPOOL& Pool = *(D3DPOOL*)(regs.edi + 0x54);
+					IDirect3DTexture9** ppTexture = (IDirect3DTexture9**)(regs.edi + 0x8C);
+
+					if (bFixCascadedShadowMapResolution)
+					{
+						if (Format == D3DFORMAT(D3DFMT_R16F) && Height >= 256 && Width == Height * 4 && Levels == 1)
+						{
+							oldCascadesWidth = Width;
+							oldCascadesHeight = Height;
+
+							Width *= 2;
+							Height *= 2;
+						}
+					}
+
+					if (bFixRainDrops && Format == D3DFMT_A16B16G16R16F && Width == (gRect.right - gRect.left) / nRainDropsBlur &&
+						Height == (gRect.bottom - gRect.top) / nRainDropsBlur && ppTexture != nullptr) {
+						ppHDRTexQuarter = ppTexture;
+					}
+				}
+			};
+			injector::MakeInline<CreateTextureHook>(pattern.get_first(0), pattern.get_first(6));
+
+			static auto loc_429427 = injector::GetBranchDestination(pattern.get_first(0x2A)).as_int();
+			struct CreateTextureHook2
+			{
+				void operator()(injector::reg_pack& regs)
+				{
+					if (ppHDRTexQuarter) {
+						pHDRTexQuarter = *ppHDRTexQuarter;
+						ppHDRTexQuarter = nullptr;
+					}
+
+					*(uintptr_t*)(regs.esp - 4) = loc_429427;
+				}
+			};
+			injector::MakeInline<CreateTextureHook2>(pattern.get_first(0x2A));
+		}
 
 		pattern = hook::pattern("8B 80 AC 11 00 00 8B 30 52");
 		struct SetTextureHook
