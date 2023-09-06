@@ -129,8 +129,19 @@ public:
 		NativeContext cxt;
 		(cxt.Push(args), ...);
 
-		static auto GetNativeHandler = hook::pattern("57 8B 3D ? ? ? ? 85 FF 75 04").count(2).get(1).get<void* (__stdcall)(uint32_t)>(0);
-		auto fn = GetNativeHandler(Hash);
+		static auto GetNativeHandler = hook::pattern("57 8B 3D ? ? ? ? 85 FF 75 04").count(2).get(0).get<void*>(0);
+		void* fn = nullptr;
+		uint32_t _hash = Hash;
+
+		_asm
+		{
+			push esi
+			mov esi, _hash
+			call GetNativeHandler
+			pop esi
+			mov fn, eax
+		}
+
 		if (fn)
 			((void(*)(NativeContext*))fn)(&cxt);
 
