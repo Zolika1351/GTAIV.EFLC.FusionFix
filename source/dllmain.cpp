@@ -485,39 +485,17 @@ private:
     }
 };
 
-bool bLoadingShown = false;
-bool __cdecl sub_411F50(uint32_t* a1, uint32_t* a2)
-{
-	bLoadingShown = false;
-	if (!a1[2] && !a2[2]) {
-		bLoadingShown = *a1 == *a2;
-		return *a1 == *a2;
-	}
-	if (a1[2] != a2[2])
-		return false;
-	if (a1[0] != a2[0])
-		return false;
-	if (a1[1] != a2[1])
-		return false;
-	bLoadingShown = true;
-	return true;
-}
-
 FrameLimiter FpsLimiter;
 FrameLimiter ScriptCutsceneFpsLimiter;
 bool(*CCutscenes__hasCutsceneFinished)();
 bool(*CCamera__isWidescreenBordersActive)();
-uint8_t* bLoadscreenShown = nullptr;
 void __cdecl sub_855640()
 {
     static auto preset = FusionFixSettings.GetRef("PREF_FPS_LIMIT_PRESET");
 
-	if (bLoadscreenShown && !*bLoadscreenShown && !bLoadingShown)
-	{
-		if (preset && *preset >= FpsCaps.eCustom) {
-			if (fFpsLimit > 0.0f || (*preset > FpsCaps.eCustom && *preset < FpsCaps.data.size()))
-				FpsLimiter.Sync();
-		}
+	if (preset && *preset >= FpsCaps.eCustom) {
+		if (fFpsLimit > 0.0f || (*preset > FpsCaps.eCustom && *preset < FpsCaps.data.size()))
+			FpsLimiter.Sync();
 	}
 
     if (CCamera__isWidescreenBordersActive())
