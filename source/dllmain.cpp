@@ -1050,6 +1050,7 @@ void Init()
     bool bRecoilFix = iniReader.ReadInteger("MAIN", "RecoilFix", 1) != 0;
     bool bHandbrakeCamFix = iniReader.ReadInteger("MAIN", "HandbrakeCamFix", 0) != 0;
     int32_t nAimingZoomFix = iniReader.ReadInteger("MAIN", "AimingZoomFix", 1);
+	static bool bDefinition = iniReader.ReadInteger("MAIN", "Definition", 0);
     bool bFlickeringShadowsFix = iniReader.ReadInteger("SHADOWS", "FlickeringShadowsFix", 1) != 0;
     bExtraDynamicShadows = iniReader.ReadInteger("SHADOWS", "ExtraDynamicShadows", 1);
     bDynamicShadowForTrees = iniReader.ReadInteger("SHADOWS", "DynamicShadowForTrees", 0) != 0;
@@ -1702,6 +1703,16 @@ void Init()
 				auto StartRegister = *(UINT*)(regs.esp + 0x24);
 				auto pConstantData = (float*)regs.esi;
 				auto Vector4fCount = *(UINT*)(regs.esp + 0x2C);
+
+				// Definition
+				{
+					static float arr[4];
+					arr[0] = static_cast<float>(bDefinition ? 0 : 1);
+					arr[1] = 0.0f;
+					arr[2] = 0.0f;
+					arr[3] = 0.0f;
+					pD3DDevice->SetPixelShaderConstantF(220, &arr[0], 1);
+				}
 
 				{
 					//Tree Translucency
