@@ -5,6 +5,7 @@
 #include <map>
 #include <d3d9.h>
 #include <bitset>
+#include "IVMenuAPI.h"
 
 struct Vector3
 {
@@ -225,6 +226,7 @@ private:
     };
 
     static inline std::vector<MenuPrefs> aMenuPrefs;
+	static inline std::vector<MenuPrefs> aMenuEnums;
     static inline auto firstCustomID = 0;
 private:
     static inline int32_t* mPrefs;
@@ -248,29 +250,24 @@ private:
         return std::nullopt;
     }
 public:
+	static int32_t GetExtraOptionValue(void* ptr)
+	{
+		return ((CSetting*)ptr)->GetValue();
+	}
+	static void SetExtraOptionValue(void* ptr, int32_t value)
+	{
+		auto setting = (CSetting*)ptr;
+		if (value <= setting->idStart) {
+			if (setting->value > setting->idStart)
+				value = setting->idStart;
+			else
+				value = setting->idEnd;
+		}
+		return setting->SetValue(value);
+	}
+
     CSettings()
     {
-        auto pattern = hook::pattern("8B 04 F5 ? ? ? ? 5E C3 8B 04 F5");
-        auto pattern2 = hook::pattern("8B 04 F5 ? ? ? ? 50 57 E8 ? ? ? ? 83 C4 08 85 C0 74 7C 83 C6 01");
-        auto originalPrefs = *pattern.count(4).get(0).get<MenuPrefs*>(3);
-        auto pOriginalPrefsNum = pattern2.get_first<uint32_t>(26);
-
-        for (auto i = 0; originalPrefs[i].prefID < *pOriginalPrefsNum; i++)
-        {
-            aMenuPrefs.emplace_back(originalPrefs[i].prefID, originalPrefs[i].name);
-        }
-        
-        aMenuPrefs.reserve(aMenuPrefs.size() * 2);
-        firstCustomID = aMenuPrefs.back().prefID + 1;
-
-        injector::WriteMemory(pattern.count(4).get(0).get<void*>(3), &aMenuPrefs[0].prefID, true);
-        injector::WriteMemory(pattern2.get_first(3), &aMenuPrefs[0].name, true);
-
-        pattern = hook::pattern("89 1C 8D ? ? ? ? E8");
-        mPrefs = *pattern.get_first<int32_t*>(3);
-
-        CIniReader iniReader("");
-
 		static CSetting arr[] = {
 			{ 0, "PREF_SKIP_INTRO",       "MAIN",       "SkipIntro",                    "",                           1, nullptr, 0, 1 },
 			{ 0, "PREF_SKIP_MENU",        "MAIN",       "SkipMenu",                     "",                           1, nullptr, 0, 1 },
@@ -287,59 +284,108 @@ public:
 			{ 0, "PREF_DEFINITION",       "MAIN",       "Definition",                   ""                          , 0, nullptr, 0, 1 },
 		};
 
-        auto i = firstCustomID;
-        for (auto& it : arr)
-        {
-            mFusionPrefs[i] = it;
-			mFusionPrefs[i].value = it.ReadFromIni(iniReader);
-            aMenuPrefs.emplace_back(i, mFusionPrefs[i].prefName.data());
-            i++;
-        }
-
-        injector::WriteMemory(pOriginalPrefsNum, aMenuPrefs.size(), true);
-
-        // MENU_DISPLAY enums hook
-        static std::vector<MenuPrefs> aMenuEnums;
-        pattern = hook::pattern("8B 04 F5 ? ? ? ? 5E C3 8B 04 F5");
-        pattern2 = hook::pattern("8B 14 F5 ? ? ? ? 52 57 E8");
-        auto pattern3 = hook::pattern("83 FE 3C 7C E3 33 C0 5E");
-        auto originalEnums = *pattern.count(4).get(2).get<MenuPrefs*>(3);
-        auto pOriginalEnumsNum = pattern2.get_first<uint8_t>(26);
-        auto pOriginalEnumsNum2 = pattern3.get_first<uint8_t>(2);
-
-        for (auto i = 0; originalEnums[i].prefID < *pOriginalEnumsNum; i++)
-        {
-            aMenuEnums.emplace_back(originalEnums[i].prefID, originalEnums[i].name);
-        }
-        aMenuEnums.reserve(aMenuEnums.size() * 2);
-        auto firstEnumCustomID = aMenuEnums.back().prefID + 1;
-
-		for (auto& it : arr)
+		// add all the menu options via the api
+		if (IVMenuAPI::IsSupported())
 		{
-			if (!it.strEnum.empty()) {
-				aMenuEnums.emplace_back(firstEnumCustomID, it.strEnum.data());
-				firstEnumCustomID += 1;
+			CIniReader iniReader("");
+
+			int i = 0;
+			for (auto& it : arr)
+			{
+				if (!it.strEnum.empty())
+				{
+					IVMenuAPI::AddMenuEnum(it.strEnum.c_str());
+				}
+				mFusionPrefs[i] = it;
+				mFusionPrefs[i].value = it.ReadFromIni(iniReader);
+				aMenuPrefs.emplace_back(i, mFusionPrefs[i].prefName.data());
+				i++;
+			}
+
+			i = 0;
+			for (auto& it : arr)
+			{
+				IVMenuAPI::AddMenuOption(it.prefName.c_str(), &mFusionPrefs[i].value, &GetExtraOptionValue, &SetExtraOptionValue);
+				i++;
 			}
 		}
+		// original code
+		else
+		{
+			auto pattern = hook::pattern("8B 04 F5 ? ? ? ? 5E C3 8B 04 F5");
+			auto pattern2 = hook::pattern("8B 04 F5 ? ? ? ? 50 57 E8 ? ? ? ? 83 C4 08 85 C0 74 7C 83 C6 01");
+			auto originalPrefs = *pattern.count(4).get(0).get<MenuPrefs*>(3);
+			auto pOriginalPrefsNum = pattern2.get_first<uint32_t>(26);
 
-        injector::WriteMemory(pattern.count(4).get(2).get<void*>(3), &aMenuEnums[0].prefID, true);
-        injector::WriteMemory(pattern2.get_first(3), &aMenuEnums[0].name, true);
-        injector::WriteMemory(pattern3.get_first(12), &aMenuEnums[0].prefID, true);
-        injector::WriteMemory(pattern3.get_first(-21), &aMenuEnums[0].name, true);
+			for (auto i = 0; originalPrefs[i].prefID < *pOriginalPrefsNum; i++)
+			{
+				aMenuPrefs.emplace_back(originalPrefs[i].prefID, originalPrefs[i].name);
+			}
 
-        injector::WriteMemory<uint8_t>(pOriginalEnumsNum, aMenuEnums.size(), true);
-        injector::WriteMemory<uint8_t>(pOriginalEnumsNum2, aMenuEnums.size(), true);
+			aMenuPrefs.reserve(aMenuPrefs.size() * 2);
+			firstCustomID = aMenuPrefs.back().prefID + 1;
 
-		// fix overflow leading to video editor breaking
-		mSomeOtherPrefsArray = new int32_t[aMenuPrefs.size()];
-		pattern = hook::pattern("89 14 8D ? ? ? ? 66");
-		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
-		pattern = hook::pattern("89 3C AD ? ? ? ? 0F B7");
-		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
-		pattern = hook::pattern("89 04 8D ? ? ? ? 8B 74 24");
-		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
-		pattern = hook::pattern("8B 04 85 ? ? ? ? 85 C0 7F");
-		injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
+			injector::WriteMemory(pattern.count(4).get(0).get<void*>(3), &aMenuPrefs[0].prefID, true);
+			injector::WriteMemory(pattern2.get_first(3), &aMenuPrefs[0].name, true);
+
+			pattern = hook::pattern("89 1C 8D ? ? ? ? E8");
+			mPrefs = *pattern.get_first<int32_t*>(3);
+
+			CIniReader iniReader("");
+
+			auto i = firstCustomID;
+			for (auto& it : arr)
+			{
+				mFusionPrefs[i] = it;
+				mFusionPrefs[i].value = it.ReadFromIni(iniReader);
+				aMenuPrefs.emplace_back(i, mFusionPrefs[i].prefName.data());
+				i++;
+			}
+
+			injector::WriteMemory(pOriginalPrefsNum, aMenuPrefs.size(), true);
+
+			// MENU_DISPLAY enums hook
+			pattern = hook::pattern("8B 04 F5 ? ? ? ? 5E C3 8B 04 F5");
+			pattern2 = hook::pattern("8B 14 F5 ? ? ? ? 52 57 E8");
+			auto pattern3 = hook::pattern("83 FE 3C 7C E3 33 C0 5E");
+			auto originalEnums = *pattern.count(4).get(2).get<MenuPrefs*>(3);
+			auto pOriginalEnumsNum = pattern2.get_first<uint8_t>(26);
+			auto pOriginalEnumsNum2 = pattern3.get_first<uint8_t>(2);
+
+			for (auto i = 0; originalEnums[i].prefID < *pOriginalEnumsNum; i++)
+			{
+				aMenuEnums.emplace_back(originalEnums[i].prefID, originalEnums[i].name);
+			}
+			aMenuEnums.reserve(aMenuEnums.size() * 2);
+			auto firstEnumCustomID = aMenuEnums.back().prefID + 1;
+
+			for (auto& it : arr)
+			{
+				if (!it.strEnum.empty()) {
+					aMenuEnums.emplace_back(firstEnumCustomID, it.strEnum.data());
+					firstEnumCustomID += 1;
+				}
+			}
+
+			injector::WriteMemory(pattern.count(4).get(2).get<void*>(3), &aMenuEnums[0].prefID, true);
+			injector::WriteMemory(pattern2.get_first(3), &aMenuEnums[0].name, true);
+			injector::WriteMemory(pattern3.get_first(12), &aMenuEnums[0].prefID, true);
+			injector::WriteMemory(pattern3.get_first(-21), &aMenuEnums[0].name, true);
+
+			injector::WriteMemory<uint8_t>(pOriginalEnumsNum, aMenuEnums.size(), true);
+			injector::WriteMemory<uint8_t>(pOriginalEnumsNum2, aMenuEnums.size(), true);
+
+			// fix overflow leading to video editor breaking
+			mSomeOtherPrefsArray = new int32_t[aMenuPrefs.size()];
+			pattern = hook::pattern("89 14 8D ? ? ? ? 66");
+			injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
+			pattern = hook::pattern("89 3C AD ? ? ? ? 0F B7");
+			injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
+			pattern = hook::pattern("89 04 8D ? ? ? ? 8B 74 24");
+			injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
+			pattern = hook::pattern("8B 04 85 ? ? ? ? 85 C0 7F");
+			injector::WriteMemory(pattern.get_first(3), mSomeOtherPrefsArray, true);
+		}
     }
 public:
     int32_t Get(int32_t prefID)
@@ -1462,49 +1508,52 @@ void Init()
 
     // runtime settings
     {
-        auto pattern = hook::pattern("89 1C 8D ? ? ? ? E8");
-        struct IniWriter
-        {
-            void operator()(injector::reg_pack& regs)
-            {
-                auto id = regs.ecx;
-                auto value = regs.ebx;
-				auto old = FusionFixSettings(id);
+		if (!IVMenuAPI::IsSupported())
+		{
+			auto pattern = hook::pattern("89 1C 8D ? ? ? ? E8");
+			struct IniWriter
+			{
+				void operator()(injector::reg_pack& regs)
+				{
+					auto id = regs.ecx;
+					auto value = regs.ebx;
+					auto old = FusionFixSettings(id);
 
-				FusionFixSettings.ForEachPref([&](int32_t prefID, int32_t idStart, int32_t idEnd) {
-					if (prefID == id) {
-						if (value <= idStart) {
-							if (old > idStart)
-								value = idStart;
-							else
-								value = idEnd;
+					FusionFixSettings.ForEachPref([&](int32_t prefID, int32_t idStart, int32_t idEnd) {
+						if (prefID == id) {
+							if (value <= idStart) {
+								if (old > idStart)
+									value = idStart;
+								else
+									value = idEnd;
+							}
 						}
-					}
-				});
-                FusionFixSettings.Set(id, value);
-            }
-        }; injector::MakeInline<IniWriter>(pattern.get_first(0), pattern.get_first(7));
+						});
+					FusionFixSettings.Set(id, value);
+				}
+			}; injector::MakeInline<IniWriter>(pattern.get_first(0), pattern.get_first(7));
 
-        pattern = hook::pattern("8B 1C 8D ? ? ? ? 89 4C 24 18");
-        struct MenuTogglesHook1
-        {
-            void operator()(injector::reg_pack& regs)
-            {
-                regs.ebx = FusionFixSettings.Get(regs.ecx);
-            }
-        }; injector::MakeInline<MenuTogglesHook1>(pattern.get_first(0), pattern.get_first(7));
+			pattern = hook::pattern("8B 1C 8D ? ? ? ? 89 4C 24 18");
+			struct MenuTogglesHook1
+			{
+				void operator()(injector::reg_pack& regs)
+				{
+					regs.ebx = FusionFixSettings.Get(regs.ecx);
+				}
+			}; injector::MakeInline<MenuTogglesHook1>(pattern.get_first(0), pattern.get_first(7));
 
-        pattern = hook::pattern("8B 0C 8D ? ? ? ? 75 12");
-        struct MenuTogglesHook2
-        {
-            void operator()(injector::reg_pack& regs)
-            {
-                regs.ecx = FusionFixSettings.Get(regs.ecx);
-            }
-        }; injector::MakeInline<MenuTogglesHook2>(pattern.get_first(0), pattern.get_first(7));
+			pattern = hook::pattern("8B 0C 8D ? ? ? ? 75 12");
+			struct MenuTogglesHook2
+			{
+				void operator()(injector::reg_pack& regs)
+				{
+					regs.ecx = FusionFixSettings.Get(regs.ecx);
+				}
+			}; injector::MakeInline<MenuTogglesHook2>(pattern.get_first(0), pattern.get_first(7));
+		}
 
         // show game in display menu
-		pattern = hook::pattern("75 10 57 E8 ? ? ? ? 83 C4 04 83 F8 03");
+		auto pattern = hook::pattern("75 10 57 E8 ? ? ? ? 83 C4 04 83 F8 03");
 		injector::WriteMemory(pattern.get_first(), 0x0EEB, true);
 		
 		pattern = hook::pattern("83 F8 03 7F 06 B8 01 00 00 00 C3 33 C0 C3");
